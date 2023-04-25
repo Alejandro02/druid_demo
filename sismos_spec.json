@@ -1,0 +1,128 @@
+{
+  "type": "kafka",
+  "spec": {
+    "ioConfig": {
+      "type": "kafka",
+      "consumerProperties": {
+        "bootstrap.servers": "kafka:9093"
+      },
+      "topic": "sismos",
+      "inputFormat": {
+        "type": "csv",
+        "findColumnsFromHeader": false,
+        "columns": [
+          "Fecha",
+          "Hora",
+          "Magnitud",
+          "Latitud",
+          "Longitud",
+          "Profundidad",
+          "Referencia_de_localizacion",
+          "Estatus"
+        ]
+      },
+      "useEarliestOffset": true
+    },
+    "tuningConfig": {
+      "type": "kafka"
+    },
+    "dataSchema": {
+      "dataSource": "sismos",
+      "timestampSpec": {
+        "column": "!!!_no_such_column_!!!",
+        "missingValue": "2010-01-01T00:00:00Z"
+      },
+      "transformSpec": {
+        "transforms": [
+          {
+            "name": "__time",
+            "type": "expression",
+            "expression": "timestamp_parse(concat(\"Fecha\", ' ', \"Hora\"))"
+          },
+          {
+            "type": "expression",
+            "name": "Estado",
+            "expression": "substring(\"Referencia_de_localizacion\", strlen(\"Referencia_de_localizacion\") -3, 3)"
+          },
+          {
+            "type": "expression",
+            "name": "Sismo_leve",
+            "expression": "\"Magnitud\" < 3.0"
+          },
+          {
+            "type": "expression",
+            "name": "Sismo_mediano",
+            "expression": "\"Magnitud\" >= 3 && \"Magnitud\" <= 6"
+          },
+          {
+            "type": "expression",
+            "name": "Sismo_fuerte",
+            "expression": "\"Magnitud\" > 6"
+          }
+        ],
+        "filter": {
+          "type": "or",
+          "fields": [
+            {
+              "type": "selector",
+              "dimension": "Estatus",
+              "value": "verificado"
+            },
+            {
+              "type": "selector",
+              "dimension": "Estatus",
+              "value": "revisado"
+            }
+          ]
+        }
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          "Fecha",
+          "Hora",
+          {
+            "type": "string",
+            "name": "Magnitud"
+          },
+          {
+            "type": "string",
+            "name": "Latitud"
+          },
+          {
+            "type": "string",
+            "name": "Longitud"
+          },
+          {
+            "type": "string",
+            "name": "Profundidad"
+          },
+          "Referencia_de_localizacion",
+          "Estatus",
+          "Estado"
+        ]
+      },
+      "granularitySpec": {
+        "queryGranularity": "thirty_minute",
+        "rollup": false,
+        "segmentGranularity": "day"
+      },
+      "metricsSpec": [
+        {
+          "type": "longSum",
+          "name": "Sismo_leve",
+          "fieldName": "Sismo_leve"
+        },
+        {
+          "type": "longSum",
+          "name": "Sismo_mediano",
+          "fieldName": "Sismo_mediano"
+        },
+        {
+          "type": "longSum",
+          "name": "Sismo_fuerte",
+          "fieldName": "Sismo_fuerte"
+        }
+      ]
+    }
+  }
+}

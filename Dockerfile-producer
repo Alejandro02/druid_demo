@@ -1,0 +1,9 @@
+FROM wurstmeister/kafka:latest
+
+COPY send_sample.sh .
+RUN chmod +x send_sample.sh
+
+COPY catalogo_sismos_sample.csv .
+
+ENTRYPOINT ["./send_sample.sh"]
+

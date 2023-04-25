@@ -1,0 +1,27 @@
+Headers
+
+Fecha, Hora, Magnitud, Latitud, Longitud, Profundidad, Referencia_de_localizacion, Estatus
+
+
+
+New column
+substring(\"Referencia_de_localizacion\", strlen(\"Referencia_de_localizacion\") -3, 3)
+
+
+
+Filter
+{
+  "type": "or",
+  "fields": [
+    {
+      "type": "selector",
+      "dimension": "Estatus",
+      "value": "verificado"
+    },
+    {
+      "type": "selector",
+      "dimension": "Estatus",
+      "value": "revisado"
+    }
+  ]
+}

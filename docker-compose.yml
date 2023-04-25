@@ -1,0 +1,177 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+version: "2.2"
+
+volumes:
+  metadata_data: {}
+  middle_var: {}
+  historical_var: {}
+  broker_var: {}
+  coordinator_var: {}
+  router_var: {}
+  druid_shared: {}
+
+
+services:
+  postgres:
+    container_name: postgres
+    image: postgres:latest
+    volumes:
+      - metadata_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=FoolishPassword
+      - POSTGRES_USER=druid
+      - POSTGRES_DB=druid
+
+  zookeeper:
+    container_name: zookeeper
+    image: zookeeper:3.5
+    ports:
+      - "2181:2181"
+    environment:
+      - ZOO_MY_ID=1
+
+  coordinator:
+    image: apache/druid:24.0.1-rc1
+    container_name: coordinator
+    volumes:
+      - druid_shared:/opt/shared
+      - coordinator_var:/opt/druid/var
+      - ~/druid/data:/opt/druid/fs
+    depends_on: 
+      - zookeeper
+      - postgres
+    ports:
+      - "8081:8081"
+    command:
+      - coordinator
+    env_file:
+      - environment
+
+  broker:
+    image: apache/druid:24.0.1-rc1
+    volumes:
+      - broker_var:/opt/druid/var
+      - ~/druid/data:/opt/druid/fs
+    depends_on: 
+      - zookeeper
+      - postgres
+      - coordinator
+    ports:
+      - "8082:8082"
+    command:
+      - broker
+    env_file:
+      - environment
+
+  historical:
+    image: apache/druid:24.0.1-rc1
+    volumes:
+      - druid_shared:/opt/shared
+      - historical_var:/opt/druid/var
+      - ~/druid/data:/opt/druid/fs
+    depends_on: 
+      - zookeeper
+      - postgres
+      - coordinator
+    ports:
+      - "8083:8083"
+    command:
+      - historical
+    env_file:
+      - environment
+
+  middlemanager:
+    image: apache/druid:24.0.1-rc1
+    volumes:
+      - druid_shared:/opt/shared
+      - middle_var:/opt/druid/var
+      - ~/druid/data:/opt/druid/fs
+    depends_on: 
+      - zookeeper
+      - postgres
+      - coordinator
+    ports:
+      - "8091:8091"
+      - "8100-8105:8100-8105"
+    command:
+      - middleManager
+    env_file:
+      - environment
+
+  router:
+    image: apache/druid:24.0.1-rc1
+    container_name: router
+    volumes:
+      - router_var:/opt/druid/var
+      - ~/druid/data:/opt/druid/fs
+    depends_on:
+      - zookeeper
+      - postgres
+      - coordinator
+    ports:
+      - "8888:8888"
+    command:
+      - router
+    env_file:
+      - environment
+
+  kafka:
+    image: wurstmeister/kafka:latest
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+      - 9093:9093
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:9093,OUTSIDE://localhost:9092
+      KAFKA_LISTENERS: INSIDE://:9093,OUTSIDE://:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_BROKER_ID: 1
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LOG_DIRS: /kafka/logs
+      KAFKA_ADVERTISED_PORT: 9092
+      # Create the required topics
+      KAFKA_CREATE_TOPICS: "sismos:1:1"
+
+  kafka-producer:
+    build:
+      dockerfile: Dockerfile-producer
+    container_name: kafka-producer
+    depends_on:
+      - kafka
+
+
+  turnilo:
+    image: uchhatre/turnilo:latest
+    container_name: turnilo
+    depends_on:
+      - broker
+    ports:
+      - 9091:9090 
+    environment:
+      DRUID_BROKER_URL: http://broker:8082
+    
+
+
+networks:
+  default:
+    name: druid-DEMO
